@@ -3,7 +3,9 @@ import java.awt.Font;
 import java.awt.geom.Rectangle2D;
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileWriter;
+import java.util.HashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -12,6 +14,11 @@ import javax.swing.UIManager;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.text.PDFTextStripperByArea;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.xssf.usermodel.XSSFCellStyle;
+import org.apache.poi.xssf.usermodel.XSSFFont;
+import org.apache.poi.xssf.usermodel.XSSFSheet;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 public class App {
 
@@ -30,6 +37,8 @@ public class App {
 	static Matcher invoiceMatcher, vatMatcher;
 	final static String[] REGION_NAMES = {"Invoice","Ship From","Ship To","VAT","Total Amount",
 				"VAT %","VAT Amount","Total Incl"};
+	final static String[] ADDITIONAL_COLUMNS = {"Ship From Country","Ship To Country",
+			"VAT from Ship To Country","Total Amount","VAT %","VAT Amount","TOTAL INCLUDING VAT"};
 	final static Rectangle2D[] REGION_RECT = {
 			new Rectangle2D.Double(400, 80, 200, 10), // 0 Invoice
 			new Rectangle2D.Double(150, 100, 200, 20), // 1 Ship From Country
@@ -59,6 +68,7 @@ public class App {
 	
 	public App() throws Exception {
 		String pdfFile = "";
+		String excelFile = "";
 		try {
 			UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
 			UIManager.getLookAndFeelDefaults().put("defaultFont",  new Font("Arial", Font.BOLD, 14));
@@ -67,8 +77,8 @@ public class App {
 			out(ex.toString());
 		}
 		
-		// SELECT PDF FILE
-//		JFileChooser fileChooser = new JFileChooser(DESKTOP_PATH);
+		// SELECT EXCEL FILE
+//		fileChooser.setDialogTitle("Choose Excel (.xlsx)");
 //		fileChooser.setMultiSelectionEnabled(false);
 //		int response = fileChooser.showOpenDialog(null);
 //		if(response == JFileChooser.APPROVE_OPTION) {
@@ -77,7 +87,60 @@ public class App {
 //			out(pdfFile);
 //		}
 		
+		// SELECT PDF FILE
+//		JFileChooser fileChooser = new JFileChooser(DESKTOP_PATH);
+//		fileChooser.setDialogTitle("Choose PDF to extract");
+//		fileChooser.setMultiSelectionEnabled(false);
+//		int response = fileChooser.showOpenDialog(null);
+//		if(response == JFileChooser.APPROVE_OPTION) {
+//			pdfFile = fileChooser.getSelectedFile().getAbsolutePath();
+//			out("We have chosen a file!!!");
+//			out(pdfFile);
+//		}
+
 		pdfFile = "C:\\Users\\safavieh\\Desktop\\EU.pdf";
+		excelFile = "C:\\Users\\safavieh\\Downloads\\Credit Memo Listing for EU October – November – December 2022.xlsx";
+		
+
+		// READ EXCEL SHEET
+		FileInputStream fis = new FileInputStream(excelFile);
+		XSSFWorkbook wb = new XSSFWorkbook(fis);
+		XSSFSheet sheet = wb.getSheetAt(0);
+		XSSFFont bodyFont = wb.createFont();
+		bodyFont.setFontName("Century Gothic");
+		bodyFont.setFontHeight(8);
+		XSSFCellStyle cellFont = wb.createCellStyle();
+		cellFont.setFont(bodyFont);
+		Row row;
+		
+		/**	// CREATE ADDITIONAL HEADERS
+			XSSFFont boldFont = wb.createFont();
+			boldFont.setBold(true);
+			boldFont.setFontName("Arial");
+			boldFont.setFontHeight(9);
+			XSSFCellStyle bold = wb.createCellStyle();
+			bold.setFont(boldFont);
+			Row row = sheet.getRow(6);
+			Cell cell;
+			for(int col = 0; col < 7; col++) {
+				cell = row.createCell(col+16);
+				cell.setCellValue(ADDITIONAL_COLUMNS[col]);
+				cell.setCellStyle(bold);
+			}
+			fis.close();
+			FileOutputStream fos = new FileOutputStream(excelFile);
+			wb.write(fos);
+			wb.close();
+			fos.close();
+		*/
+
+		int rowCount = sheet.getPhysicalNumberOfRows();
+		HashMap<String,Integer> itemIdMap = new HashMap<String,Integer>();
+		for(int rowNum = 7; rowNum < rowCount; rowNum++) {
+			row = sheet.getRow(rowNum);
+			itemIdMap.put(row.getCell(1).getStringCellValue(),rowNum);
+		}
+		
 		// READ IN PDF FILE
 		PDDocument doc = PDDocument.load((new File(pdfFile)));
 		int pageCount = doc.getNumberOfPages();
@@ -106,10 +169,11 @@ public class App {
 				} else {
 					values[region] = pdfsa.getTextForRegion(REGION_NAMES[region]).trim();	
 				}
-				out(REGION_NAMES[region] + " : [" + values[region] + "]");
+//				out(REGION_NAMES[region] + " : [" + values[region] + "]");
 			}
 		}
 		
+		doc.close();
 	}
 	
 	public void out(String stringToPrint) {
