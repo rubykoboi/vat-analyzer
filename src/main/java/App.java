@@ -4,6 +4,7 @@ import java.awt.geom.Rectangle2D;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.util.HashMap;
 import java.util.regex.Matcher;
@@ -14,6 +15,7 @@ import javax.swing.UIManager;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.text.PDFTextStripperByArea;
+import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.xssf.usermodel.XSSFCellStyle;
 import org.apache.poi.xssf.usermodel.XSSFFont;
@@ -49,7 +51,7 @@ public class App {
 			new Rectangle2D.Double(500, 669, 200, 17), // 6 VAT Amount
 			new Rectangle2D.Double(500, 686, 200, 7)  // 7 Total Including VAT
 	};
-	
+	final static int COLUMN_START = 16;
 	String[] values = new String[REGION_NAMES.length];
 	public static void main(String[] args) {
 		EventQueue.invokeLater(new Runnable() {
@@ -112,6 +114,7 @@ public class App {
 		XSSFCellStyle cellFont = wb.createCellStyle();
 		cellFont.setFont(bodyFont);
 		Row row;
+		Cell cell;
 		
 		/**	// CREATE ADDITIONAL HEADERS
 			XSSFFont boldFont = wb.createFont();
@@ -135,23 +138,41 @@ public class App {
 		*/
 
 		int rowCount = sheet.getPhysicalNumberOfRows();
-		HashMap<String,Integer> itemIdMap = new HashMap<String,Integer>();
+		
+		/** 
+		 * 	This section stores the Invoices in a HashMap  
+		 * 	called invoicesMap, storing the index of its row
+		 * 	as the value and the Item ID as the key
+		 */
+		HashMap<String,Integer> invoicesMap = new HashMap<String,Integer>();
 		for(int rowNum = 7; rowNum < rowCount; rowNum++) {
 			row = sheet.getRow(rowNum);
-			itemIdMap.put(row.getCell(1).getStringCellValue(),rowNum);
+			invoicesMap.put(row.getCell(1).getStringCellValue(),rowNum);
 		}
 		
 		// READ IN PDF FILE
 		PDDocument doc = PDDocument.load((new File(pdfFile)));
 		int pageCount = doc.getNumberOfPages();
 		out("There are " + pageCount + " pages in the selected pdf file.");
+		out(pdfFile);
+		out("We are referencing the following excel sheet: \n\t"+excelFile);
 		PDPage page = new PDPage();
 		
-		// GO THROUGH EACH PAGE
+		/**
+		 * Go through each odd-numbered page in the pdf and extract
+		 * After extracting, we find the row number that corresponds to the
+		 * order on the pdf which info we extracted.
+		 * After finding that row, we add the new information on the new columns
+		 * that were added to the right.
+		 */
 		for(int pageNum = 1; pageNum <= 2; pageNum+=2) {
 			page = doc.getPage(pageNum-1);
 		
-			// STRIP PDF FILE ONTO PARTS NEEDED
+			/**
+			 * We start stripping the pdf by area to find the 7 values we need
+			 * The first value is for referencing the correct row on the excel sheet
+			 * The rest are for adding onto the excel sheet
+			 */
 			PDFTextStripperByArea pdfsa = new PDFTextStripperByArea();
 			pdfsa.setSortByPosition(true);
 			
@@ -171,8 +192,33 @@ public class App {
 				}
 //				out(REGION_NAMES[region] + " : [" + values[region] + "]");
 			}
+			
+			/**
+			 * Search the excel sheet of the corresponding invoice number
+			 * to add the matching information to the same row.
+			 * Go to that row and add the values extracted from the pdf onto the new columns
+			 */
+			if(invoicesMap.containsKey(values[0])) {
+				out("Found invoice ["+values[0]+"] on row "+invoicesMap.get(values[0]));
+				// GET THE FIRST ROW CORRESPONDING TO THE INVOICE FOUND
+				row = sheet.getRow(invoicesMap.get(values[0])); 
+				for(int col = 0; col < ADDITIONAL_COLUMNS.length; col++) {
+					cell = row.getCell(col+COLUMN_START);
+					cell.setCellValue(values[col+1]);
+					out(REGION_NAMES[col+1]+" : "+values[col+1]);
+				}
+				out("Added additional columns for the values above");
+			} else {
+				out("We did not find invoice ["+values[0]+"] on the excel sheet");
+			}
+			
 		}
-		
+
+		fis.close();
+		FileOutputStream fos = new FileOutputStream(excelFile);
+		wb.write(fos);
+		wb.close();
+		fos.close();
 		doc.close();
 	}
 	
