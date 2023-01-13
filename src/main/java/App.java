@@ -33,7 +33,8 @@ public class App {
 //	 */
 	final static String DESKTOP_PATH = System.getProperty("user.home") + "\\Desktop\\";
 	final static String INVOICE_REGEX = "Invoice Number : ([A-Z]{2}\\d{7})";
-	final static String VAT_REGEX = "VAT : (.*)";
+	final static String COUNTRY_REGEX = "[a-zA-Z ]+$";
+	final static String VAT_REGEX = "VAT : (.*)$";
 	final static Pattern INVOICE_PATTERN = Pattern.compile(INVOICE_REGEX);
 	final static Pattern VAT_PATTERN = Pattern.compile(VAT_REGEX);
 	static Matcher invoiceMatcher, vatMatcher;
@@ -101,7 +102,7 @@ public class App {
 //		}
 
 		pdfFile = "C:\\Users\\safavieh\\Desktop\\EU.pdf";
-		excelFile = "C:\\Users\\safavieh\\Downloads\\Credit Memo Listing for EU October – November – December 2022.xlsx";
+		excelFile = "C:\\Users\\safavieh\\Downloads\\Sales Invoice Listing for EU October – November – December 2022.xlsx";
 		
 
 		// READ EXCEL SHEET
@@ -147,7 +148,9 @@ public class App {
 		HashMap<String,Integer> invoicesMap = new HashMap<String,Integer>();
 		for(int rowNum = 7; rowNum < rowCount; rowNum++) {
 			row = sheet.getRow(rowNum);
-			invoicesMap.put(row.getCell(1).getStringCellValue(),rowNum);
+			cell = row.getCell(1);
+			if(cell == null) continue;
+			invoicesMap.put(cell.getStringCellValue(),rowNum);
 		}
 		
 		// READ IN PDF FILE
@@ -165,7 +168,7 @@ public class App {
 		 * After finding that row, we add the new information on the new columns
 		 * that were added to the right.
 		 */
-		for(int pageNum = 1; pageNum <= 2; pageNum+=2) {
+		for(int pageNum = 1; pageNum <= pageCount; pageNum+=2) {
 			page = doc.getPage(pageNum-1);
 		
 			/**
@@ -203,7 +206,7 @@ public class App {
 				// GET THE FIRST ROW CORRESPONDING TO THE INVOICE FOUND
 				row = sheet.getRow(invoicesMap.get(values[0])); 
 				for(int col = 0; col < ADDITIONAL_COLUMNS.length; col++) {
-					cell = row.getCell(col+COLUMN_START);
+					cell = row.createCell(col+COLUMN_START);
 					cell.setCellValue(values[col+1]);
 					out(REGION_NAMES[col+1]+" : "+values[col+1]);
 				}
