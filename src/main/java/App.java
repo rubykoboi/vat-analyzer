@@ -33,27 +33,30 @@ public class App {
 //	 */
 	final static String DESKTOP_PATH = System.getProperty("user.home") + "\\Desktop\\";
 	final static String INVOICE_REGEX = "Invoice Number : ([A-Z]{2}\\d{7})";
-	final static String COUNTRY_REGEX = "[a-zA-Z ]+$";
-	final static String VAT_REGEX = "VAT : (.*)$";
+	final static String SHIP_FROM_REGEX = "([a-zA-Z ]+)$";
+	final static String SHIP_TO_REGEX = "[\\d\\s\\.]*([a-zA-Z ]+)$(?!(\\nTel\\.))";
+	final static String VAT_REGEX = "VAT :([\\w (N/A)]*)?";
 	final static Pattern INVOICE_PATTERN = Pattern.compile(INVOICE_REGEX);
+	final static Pattern SHIP_FROM_PATTERN = Pattern.compile(SHIP_FROM_REGEX);
+	final static Pattern SHIP_TO_PATTERN = Pattern.compile(SHIP_TO_REGEX);
 	final static Pattern VAT_PATTERN = Pattern.compile(VAT_REGEX);
-	static Matcher invoiceMatcher, vatMatcher;
-	final static String[] REGION_NAMES = {"Invoice","Ship From","Ship To","VAT","Total Amount",
+	static Matcher invoiceMatcher, shipFromMatcher, shipToMatcher, vatMatcher;
+	final static String[] REGION_NAMES = {"Invoice","Ship From","Ship To & VAT","Total Amount",
 				"VAT %","VAT Amount","Total Incl"};
 	final static String[] ADDITIONAL_COLUMNS = {"Ship From Country","Ship To Country",
 			"VAT from Ship To Country","Total Amount","VAT %","VAT Amount","TOTAL INCLUDING VAT"};
 	final static Rectangle2D[] REGION_RECT = {
 			new Rectangle2D.Double(400, 80, 200, 10), // 0 Invoice
 			new Rectangle2D.Double(150, 100, 200, 20), // 1 Ship From Country
-			new Rectangle2D.Double(150, 180, 200, 10), // 2 Ship To Country
-			new Rectangle2D.Double(150, 210, 200, 10), // 3 VAT from Ship To Country
-			new Rectangle2D.Double(500, 650, 200, 7), // 4 Total Amount
-			new Rectangle2D.Double(500, 660, 200, 7), // 5 Vat %
-			new Rectangle2D.Double(500, 669, 200, 17), // 6 VAT Amount
-			new Rectangle2D.Double(500, 686, 200, 7)  // 7 Total Including VAT
+			new Rectangle2D.Double(150, 183, 200, 50), // 2 Ship To Country & VAT
+//			new Rectangle2D.Double(150, 210, 200, 10), // 3 VAT from Ship To Country
+			new Rectangle2D.Double(500, 650, 200, 7), // 3 Total Amount
+			new Rectangle2D.Double(500, 660, 200, 7), // 4 Vat %
+			new Rectangle2D.Double(500, 669, 200, 17), // 5 VAT Amount
+			new Rectangle2D.Double(500, 686, 200, 7)  // 6 Total Including VAT
 	};
 	final static int COLUMN_START = 16;
-	String[] values = new String[REGION_NAMES.length];
+	String[] values = new String[REGION_NAMES.length+1];
 	public static void main(String[] args) {
 		EventQueue.invokeLater(new Runnable() {
 			public void run() {
@@ -178,22 +181,47 @@ public class App {
 			 */
 			PDFTextStripperByArea pdfsa = new PDFTextStripperByArea();
 			pdfsa.setSortByPosition(true);
-			
+			String currentRegion = "";
 			for(int region = 0; region < REGION_NAMES.length; region++) {
 				pdfsa.addRegion(REGION_NAMES[region], REGION_RECT[region]);
 				pdfsa.extractRegions(page);
-				if(REGION_NAMES[region] == "Invoice") {
-					invoiceMatcher = INVOICE_PATTERN.matcher(pdfsa.getTextForRegion(REGION_NAMES[region]).trim());
+				currentRegion = pdfsa.getTextForRegion(REGION_NAMES[region]).trim();
+				if(REGION_NAMES[region] == "Invoice") { // 0
+					invoiceMatcher = INVOICE_PATTERN.matcher(currentRegion);
 					if(invoiceMatcher.find()) values[region] = invoiceMatcher.group(1);
 					else values[region] = "NO INVOICE FOUND";
-				} else if(REGION_NAMES[region] == "VAT") {
-					vatMatcher = VAT_PATTERN.matcher(pdfsa.getTextForRegion(REGION_NAMES[region]).trim());
-					if(vatMatcher.find()) values[region] = vatMatcher.group(1);
-					else values[region] = "NO VAT FOUND";
-				} else {
-					values[region] = pdfsa.getTextForRegion(REGION_NAMES[region]).trim();	
+				} else if(REGION_NAMES[region] == "Ship From") { // 1
+					out("Ship from : " + currentRegion);
+					shipFromMatcher = SHIP_FROM_PATTERN.matcher(currentRegion);
+					if(shipFromMatcher.find()) values[region] = shipFromMatcher.group(1).trim();
+				} else if(REGION_NAMES[region] == "Ship To & VAT") { // 2
+					
+					out("Ship To & VAT: " + currentRegion);
+					shipToMatcher = SHIP_TO_PATTERN.matcher(currentRegion);
+					if(shipToMatcher.find()) values[region] = shipToMatcher.group(1);
+					else {
+						int beginIndex = 0;
+						int endIndex = 0;
+						if(currentRegion.indexOf("Tel.") == -1) out("there is no Tel. captured");
+						else {
+							beginIndex = currentRegion.indexOf(".", currentRegion.indexOf("Tel."));
+						}
+						if(currentRegion.indexOf("VAT") == -1) {
+							out("there is no VAT captured");
+							endIndex = currentRegion.length();
+						}
+						else endIndex = currentRegion.indexOf("VAT") -1;
+						shipToMatcher = SHIP_TO_PATTERN.matcher(currentRegion.substring(beginIndex, endIndex));
+						if(shipToMatcher.find()) values[region] = shipToMatcher.group(1);
+					}
+					out("SHIP TO : " + values[region]);
+					vatMatcher = VAT_PATTERN.matcher(currentRegion);
+					if(vatMatcher.find()) values[region+1] = vatMatcher.group(1);
+					else values[region+1] = "VAT NOT DETECTED";
+					out("VAT : " + values[region+1]);
+				} else { // 3-6
+					values[region+1] = currentRegion;	
 				}
-//				out(REGION_NAMES[region] + " : [" + values[region] + "]");
 			}
 			
 			/**
@@ -208,7 +236,7 @@ public class App {
 				for(int col = 0; col < ADDITIONAL_COLUMNS.length; col++) {
 					cell = row.createCell(col+COLUMN_START);
 					cell.setCellValue(values[col+1]);
-					out(REGION_NAMES[col+1]+" : "+values[col+1]);
+					out(" : "+values[col+1]);
 				}
 				out("Added additional columns for the values above");
 			} else {
