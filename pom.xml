@@ -5,6 +5,8 @@
   <version>0.0.1-SNAPSHOT</version>
 <!-- ver. 0.0.1
 	1. Initial version
+	2. has file choosers to choose pdf and excel files
+	3. opens the excel file after program finishes execution
 -->
 	<build>
 		<pluginManagement>
