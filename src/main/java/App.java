@@ -28,12 +28,12 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 public class App {
 
 	private static String printLog = "";
-	/** SHARED PATHS
+//	/** SHARED PATHS
 		final static String LOG_FILE = "S:\\Purchasing\\GeneralShare\\Robbi Programs\\LOG FILES\\Vat Analyzer LOG_FILE.txt";
-	 */
-//	/** LOCAL PATHS
-		final static String LOG_FILE = "C:\\Vat Analyzer\\VAT_ANALYZER Log File.txt";
 //	 */
+	/** LOCAL PATHS
+		final static String LOG_FILE = "C:\\Vat Analyzer\\VAT_ANALYZER Log File.txt";
+	 */
 	final static String DESKTOP_PATH = System.getProperty("user.home") + "\\Desktop\\";
 	final static String INVOICE_REGEX = "Invoice Number : ([A-Z]{2}\\d{7})";
 	final static String SHIP_FROM_REGEX = "([a-zA-Z ]+)$";
@@ -254,7 +254,6 @@ public class App {
 				} else {
 					out("We did not find invoice ["+values[0]+"] on the excel sheet");
 				}
-				
 			}
 			out("after block");
 	
