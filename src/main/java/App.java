@@ -8,32 +8,33 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import javax.swing.JFileChooser;
 import javax.swing.UIManager;
-import javax.swing.filechooser.FileNameExtensionFilter;
 
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.text.PDFTextStripperByArea;
-import org.apache.poi.ss.usermodel.Cell;
-import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.xssf.usermodel.XSSFCell;
 import org.apache.poi.xssf.usermodel.XSSFCellStyle;
 import org.apache.poi.xssf.usermodel.XSSFFont;
+import org.apache.poi.xssf.usermodel.XSSFRow;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 public class App {
 
 	private static String printLog = "";
-//	/** SHARED PATHS
+	/** SHARED PATHS
 		final static String LOG_FILE = "S:\\Purchasing\\GeneralShare\\Robbi Programs\\LOG FILES\\Vat Analyzer LOG_FILE.txt";
-//	 */
-	/** LOCAL PATHS
-		final static String LOG_FILE = "C:\\Vat Analyzer\\VAT_ANALYZER Log File.txt";
 	 */
+//	/** LOCAL PATHS
+		final static String LOG_FILE = "C:\\Vat Analyzer\\VAT_ANALYZER Log File.txt";
+//	 */
 	final static String DESKTOP_PATH = System.getProperty("user.home") + "\\Desktop\\";
 	final static String INVOICE_REGEX = "Invoice Number : ([A-Z]{2}\\d{7})";
 	final static String SHIP_FROM_REGEX = "([a-zA-Z ]+)$";
@@ -48,6 +49,7 @@ public class App {
 				"VAT %","VAT Amount","Total Incl"};
 	final static String[] ADDITIONAL_COLUMNS = {"Ship From Country","Ship To Country",
 			"VAT from Ship To Country","Total Amount","VAT %","VAT Amount","TOTAL INCLUDING VAT"};
+	final static String[] SUMMARY_SHEET_HEADERS = {"Ship From Country","Ship To Country","VAT from Ship To Country","VAT %"};
 	final static Rectangle2D[] REGION_RECT = {
 			new Rectangle2D.Double(400, 80, 200, 10), // 0 Invoice
 			new Rectangle2D.Double(150, 100, 200, 20), // 1 Ship From Country
@@ -88,7 +90,7 @@ public class App {
 		}
 		
 		try {
-			///** SELECT PDF FILE
+			/** SELECT PDF FILE
 			JFileChooser fileChooser1 = new JFileChooser(DESKTOP_PATH);
 			fileChooser1.setDialogTitle("Choose PDF to extract");
 			fileChooser1.setMultiSelectionEnabled(false);
@@ -115,10 +117,10 @@ public class App {
 	
 			//*/
 	
-	//		/** LOCAL HARD CODED PATHS
-	//		pdfFile = "C:\\Users\\safavieh\\Downloads\\EU4.pdf";
-	//		excelFile = "C:\\Users\\safavieh\\Downloads\\Sales Invoice Listing for EU October – November – December 2022.xlsx";
-	//		 */		
+//			/** LOCAL HARD CODED PATHS
+			pdfFile = "C:\\Users\\safavieh\\Downloads\\EU4.pdf";
+			excelFile = "C:\\Users\\safavieh\\Downloads\\Sales Invoice Listing for EU October – November – December 2022 (1).xlsx";
+//			 */		
 	
 			// READ EXCEL SHEET
 			FileInputStream fis = new FileInputStream(excelFile);
@@ -129,8 +131,8 @@ public class App {
 			bodyFont.setFontHeight(8);
 			XSSFCellStyle cellFont = wb.createCellStyle();
 			cellFont.setFont(bodyFont);
-			Row row;
-			Cell cell;
+			XSSFRow row;
+			XSSFCell cell;
 			
 			// CREATE ADDITIONAL HEADERS
 			XSSFFont boldFont = wb.createFont();
@@ -248,6 +250,7 @@ public class App {
 					for(int col = 0; col < ADDITIONAL_COLUMNS.length; col++) {
 						cell = row.createCell(col+COLUMN_START);
 						cell.setCellValue(values[col+1]);
+						cell.setCellStyle(cellFont);
 						out(" : "+values[col+1]);
 					}
 					out("Added additional columns for the values above");
@@ -255,8 +258,63 @@ public class App {
 					out("We did not find invoice ["+values[0]+"] on the excel sheet");
 				}
 			}
-			out("after block");
-	
+
+			/**
+			 * Create a second sheet where the summary is
+			 * We need to print out the summary of VAT information when we ship from 
+			 * Country From to Country To. If the VAT is provided or not and how much
+			 * % is the VAT for this shipping pattern.
+			 * 
+			 * We need a Set in order to collect this information from each row without having duplicates.
+			 */
+			// This block collects all the different String combination of Country From/Country To/VAT/VAT% in a Set
+			SortedSet<String> summarySet = new TreeSet<String>();
+			String vatPattern;
+			for(int rowNum = 7; rowNum < rowCount; rowNum++) {
+				vatPattern = "";
+				row = sheet.getRow(rowNum);
+				cell = row.getCell(COLUMN_START);
+				if(cell == null) continue;
+				else {
+					vatPattern += row.getCell(COLUMN_START).getStringCellValue().trim().toUpperCase()+"|"; // COUNTRY FROM
+					vatPattern += row.getCell(COLUMN_START+1).getStringCellValue().trim().toUpperCase()+"|"; // COUNTRY TO
+					vatPattern += row.getCell(COLUMN_START+2).getStringCellValue().trim()+"|"; // VAT
+					vatPattern += row.getCell(COLUMN_START+4).getStringCellValue().trim(); // VAT %
+//					out("VAT PATTERN Collected : " + vatPattern);
+					summarySet.add(vatPattern.trim());
+				}
+			}
+			
+			// This block creates a new sheet and prints out the Vat summary on a new sheet
+			XSSFSheet summarySheet;
+			String[] rowString = new String[4];
+			Iterator<String> summarySetIterator = summarySet.iterator();
+			String tempString;
+			if(wb.getSheet("VAT Summary") == null) { // If the sheet doesn't exist yet, create it and put headers
+				summarySheet = wb.createSheet("VAT Summary");
+				row = summarySheet.createRow(0);
+				for(int col = 0; col < SUMMARY_SHEET_HEADERS.length; col++) {
+					cell = row.createCell(col);
+					cell.setCellValue(SUMMARY_SHEET_HEADERS[col]);
+					cell.setCellStyle(bold);
+				}
+			} else { // If the sheet already exists, print over
+				summarySheet = wb.getSheet("VAT Summary");
+			}
+			for(int rowNum = 1; rowNum <= summarySet.size(); rowNum++) {
+				row = summarySheet.createRow(rowNum);
+				tempString = summarySetIterator.next();
+				out("String is " + tempString);
+				rowString = tempString.split("\\|");
+				for(int col = 0; col < SUMMARY_SHEET_HEADERS.length; col++) {
+					cell = row.createCell(col);
+					cell.setCellValue(rowString[col]);
+					cell.setCellStyle(cellFont);
+					out("rowString["+col+"] is " +rowString[col]);
+				}
+			}
+			
+			
 			fis.close();
 			FileOutputStream fos = new FileOutputStream(excelFile);
 			wb.write(fos);
