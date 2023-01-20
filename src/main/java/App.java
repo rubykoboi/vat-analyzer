@@ -14,7 +14,9 @@ import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import javax.swing.JFileChooser;
 import javax.swing.UIManager;
+import javax.swing.filechooser.FileNameExtensionFilter;
 
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
@@ -29,12 +31,12 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 public class App {
 
 	private static String printLog = "";
-	/** SHARED PATHS
+//	/** SHARED PATHS
 		final static String LOG_FILE = "S:\\Purchasing\\GeneralShare\\Robbi Programs\\LOG FILES\\Vat Analyzer LOG_FILE.txt";
-	 */
-//	/** LOCAL PATHS
-		final static String LOG_FILE = "C:\\Vat Analyzer\\VAT_ANALYZER Log File.txt";
 //	 */
+	/** LOCAL PATHS
+		final static String LOG_FILE = "C:\\Vat Analyzer\\VAT_ANALYZER Log File.txt";
+	 */
 	final static String DESKTOP_PATH = System.getProperty("user.home") + "\\Desktop\\";
 	final static String INVOICE_REGEX = "Invoice Number : ([A-Z]{2}\\d{7})";
 	final static String SHIP_FROM_REGEX = "([a-zA-Z ]+)$";
@@ -49,7 +51,7 @@ public class App {
 				"VAT %","VAT Amount","Total Incl"};
 	final static String[] ADDITIONAL_COLUMNS = {"Ship From Country","Ship To Country",
 			"VAT from Ship To Country","Total Amount","VAT %","VAT Amount","TOTAL INCLUDING VAT"};
-	final static String[] SUMMARY_SHEET_HEADERS = {"Ship From Country","Ship To Country","VAT from Ship To Country","VAT %"};
+	final static String[] SUMMARY_SHEET_HEADERS = {"Ship From Country","Ship To Country","Customer ID","VAT from Ship To Country","VAT %"};
 	final static Rectangle2D[] REGION_RECT = {
 			new Rectangle2D.Double(400, 80, 200, 10), // 0 Invoice
 			new Rectangle2D.Double(150, 100, 200, 20), // 1 Ship From Country
@@ -90,7 +92,7 @@ public class App {
 		}
 		
 		try {
-			/** SELECT PDF FILE
+//			/** SELECT PDF FILE
 			JFileChooser fileChooser1 = new JFileChooser(DESKTOP_PATH);
 			fileChooser1.setDialogTitle("Choose PDF to extract");
 			fileChooser1.setMultiSelectionEnabled(false);
@@ -115,12 +117,12 @@ public class App {
 			}
 	
 	
-			//*/
+//			*/
 	
-//			/** LOCAL HARD CODED PATHS
+			/** LOCAL HARD CODED PATHS
 			pdfFile = "C:\\Users\\safavieh\\Downloads\\EU4.pdf";
 			excelFile = "C:\\Users\\safavieh\\Downloads\\Sales Invoice Listing for EU October – November – December 2022 (1).xlsx";
-//			 */		
+			 */		
 	
 			// READ EXCEL SHEET
 			FileInputStream fis = new FileInputStream(excelFile);
@@ -267,7 +269,7 @@ public class App {
 			 * 
 			 * We need a Set in order to collect this information from each row without having duplicates.
 			 */
-			// This block collects all the different String combination of Country From/Country To/VAT/VAT% in a Set
+			// This block collects all the different String combination of Country From|Country To|Customer ID|VAT|VAT% in a Set
 			SortedSet<String> summarySet = new TreeSet<String>();
 			String vatPattern;
 			for(int rowNum = 7; rowNum < rowCount; rowNum++) {
@@ -278,6 +280,7 @@ public class App {
 				else {
 					vatPattern += row.getCell(COLUMN_START).getStringCellValue().trim().toUpperCase()+"|"; // COUNTRY FROM
 					vatPattern += row.getCell(COLUMN_START+1).getStringCellValue().trim().toUpperCase()+"|"; // COUNTRY TO
+					vatPattern += row.getCell(2).getStringCellValue().trim()+"|"; // CUSTOMER ID
 					vatPattern += row.getCell(COLUMN_START+2).getStringCellValue().trim()+"|"; // VAT
 					vatPattern += row.getCell(COLUMN_START+4).getStringCellValue().trim(); // VAT %
 //					out("VAT PATTERN Collected : " + vatPattern);
@@ -287,7 +290,7 @@ public class App {
 			
 			// This block creates a new sheet and prints out the Vat summary on a new sheet
 			XSSFSheet summarySheet;
-			String[] rowString = new String[4];
+			String[] rowString = new String[5];
 			Iterator<String> summarySetIterator = summarySet.iterator();
 			String tempString;
 			if(wb.getSheet("VAT Summary") == null) { // If the sheet doesn't exist yet, create it and put headers
@@ -304,16 +307,15 @@ public class App {
 			for(int rowNum = 1; rowNum <= summarySet.size(); rowNum++) {
 				row = summarySheet.createRow(rowNum);
 				tempString = summarySetIterator.next();
-				out("String is " + tempString);
+//				out("String is " + tempString);
 				rowString = tempString.split("\\|");
 				for(int col = 0; col < SUMMARY_SHEET_HEADERS.length; col++) {
 					cell = row.createCell(col);
 					cell.setCellValue(rowString[col]);
 					cell.setCellStyle(cellFont);
-					out("rowString["+col+"] is " +rowString[col]);
+//					out("rowString["+col+"] is " +rowString[col]);
 				}
 			}
-			
 			
 			fis.close();
 			FileOutputStream fos = new FileOutputStream(excelFile);
